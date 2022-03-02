@@ -11,14 +11,14 @@ train_dir=train_960
 
 if [ "$#" -ne 2 ]; then
   echo "Usage: $0 <download_dir> <out_dir>"
-  echo "e.g.: $0 /tmp/librispeech_raw/ ~/data/librispeech_final"
+  echo "e.g.: $0 tmp/librispeech_raw/ data/librispeech_final"
   exit 1
 fi
 
 download_dir=${1%/}
 out_dir=${2%/}
 
-fairseq_root=~/fairseq-py/
+fairseq_root=~/fairseq/
 mkdir -p ${out_dir}
 cd ${out_dir} || exit
 
@@ -46,8 +46,9 @@ done
 echo "Merge all train packs into one"
 mkdir -p ${download_dir}/LibriSpeech/${train_dir}/
 for part in train-clean-100 train-clean-360 train-other-500; do
-    mv ${download_dir}/LibriSpeech/${part}/* $download_dir/LibriSpeech/${train_dir}/
+    mv ${download_dir}/LibriSpeech/${part}/* $download_dir/LibriSpeech/${train_dir}/ 
 done
+
 echo "Merge train text"
 find ${download_dir}/LibriSpeech/${train_dir}/ -name '*.txt' -exec cat {} \; >> ${download_dir}/LibriSpeech/${train_dir}/text
 
@@ -67,7 +68,9 @@ mkdir -p data/lang_char/
 echo "<unk> 3" > ${dict}
 echo "</s> 2" >> ${dict}
 echo "<pad> 1" >> ${dict}
+
 cut -f 2- -d" " ${download_dir}/LibriSpeech/${train_dir}/text > data/lang_char/input.txt
+
 spm_train --input=data/lang_char/input.txt --vocab_size=${nbpe} --model_type=${bpemode} --model_prefix=${bpemodel} --input_sentence_size=100000000 --unk_id=3 --eos_id=2 --pad_id=1 --bos_id=-1 --character_coverage=1
 spm_encode --model=${bpemodel}.model --output_format=piece < data/lang_char/input.txt > ${encoded}
 cat ${encoded} | tr ' ' '\n' | sort | uniq | awk '{print $0 " " NR+3}' >> ${dict}
@@ -80,6 +83,7 @@ for part in train_960 test-other test-clean; do
 done
 # fairseq expects to find train.json and valid.json during training
 mv train_960.json train.json
+
 
 echo "Prepare valid json"
 python ${fairseq_root}/examples/speech_recognition/datasets/asr_prep_json.py --audio-dirs ${download_dir}/LibriSpeech/dev-clean ${download_dir}/LibriSpeech/dev-other --labels ${download_dir}/LibriSpeech/valid_text --spm-model ${bpemodel}.model --audio-format flac --dictionary ${fairseq_dict} --output valid.json

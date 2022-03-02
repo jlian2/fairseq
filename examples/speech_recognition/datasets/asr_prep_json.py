@@ -24,20 +24,24 @@ MILLISECONDS_TO_SECONDS = 0.001
 def process_sample(aud_path, lable, utt_id, sp, tgt_dict):
     import torchaudio
 
-    input = {}
+    _input = {}
     output = {}
-    si, ei = torchaudio.info(aud_path)
-    input["length_ms"] = int(
-        si.length / si.channels / si.rate / MILLISECONDS_TO_SECONDS
+    si = torchaudio.info(aud_path)
+
+    _input["length_ms"] = int(
+        si.num_frames / si.num_channels / si.sample_rate / MILLISECONDS_TO_SECONDS
     )
-    input["path"] = aud_path
+    _input["path"] = aud_path
 
     token = " ".join(sp.EncodeAsPieces(lable))
     ids = tgt_dict.encode_line(token, append_eos=False)
     output["text"] = lable
     output["token"] = token
     output["tokenid"] = ", ".join(map(str, [t.tolist() for t in ids]))
-    return {utt_id: {"input": input, "output": output}}
+    return {utt_id: {"input": _input, "output": output}}
+
+
+
 
 
 def main():
@@ -101,16 +105,16 @@ def main():
                 if utt_id not in labels:
                     continue
                 samples.append(Sample(os.path.join(path, f), utt_id))
+                
+    #Sample(aud_path='tmp/librispeech_raw/LibriSpeech/dev-other/6841/88294/6841-88294-0058.flac', utt_id='6841-88294-0058')
 
     utts = {}
-    num_cpu = multiprocessing.cpu_count()
+    num_cpu = multiprocessing.cpu_count() #4
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_cpu) as executor:
         future_to_sample = {
-            executor.submit(
-                process_sample, s.aud_path, labels[s.utt_id], s.utt_id, sp, tgt_dict
-            ): s
-            for s in samples
+            executor.submit(process_sample, s.aud_path, labels[s.utt_id], s.utt_id, sp, tgt_dict): s for s in samples
         }
+
         for future in concurrent.futures.as_completed(future_to_sample):
             try:
                 data = future.result()
